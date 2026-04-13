@@ -38,11 +38,21 @@
 <br><br>
 
 <!-- ANALYSE -->
+<select onchange="setMode(this.value)">
+    <option value="patient">Patient</option>
+    <option value="student">Student</option>
+    <option value="doctor">Doctor</option>
+    </select>
 <button onclick="analyze()">Analyser</button>
+<button onclick="loadEEGData()">Load EEG Data</button>
+<button onclick="drawChart()">Show EEG Chart</button>
 
 <h2>Résultat :</h2>
 <p id="result"></p>
-
+<input type="file" id="fileInput">
+<button onclick="uploadFile()">Upload EEG</button>
+<canvas id="eegChart" width="600" height="300"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="script.js"></script>
 
 </body>
