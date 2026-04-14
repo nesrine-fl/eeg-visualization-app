@@ -3,9 +3,9 @@ const SAMPLE_INTERVAL = 50;
 const SESSION_INTERVAL = 60000;
 const SIGNAL_RANGE = 120;
 const MODE_LABELS = {
-    patient: 'Patient',
-    etudiant: 'Étudiant',
-    docteur: 'Docteur'
+    simple: 'simple',
+    moyen: 'moyen',
+    compliqué: 'compliqué'
 };
 let lastExplanation = "";
 const state = {
@@ -197,9 +197,19 @@ function valueToY(value, height) {
 }
 
 function getVisibleBands() {
-    if (state.currentMode === 'etudiant') return ['alpha', 'beta'];
-    if (state.currentMode === 'docteur') return ['alpha', 'beta', 'gamma'];
-    return ['alpha'];
+    if (state.currentMode === "simple") {
+        return ["alpha"];
+    }
+
+    if (state.currentMode === "moyen") {
+        return ["alpha", "beta"];
+    }
+
+    if (state.currentMode === "compliqué") {
+        return ["alpha", "beta", "gamma"];
+    }
+
+    return ["alpha"];
 }
 
 function updateMetrics() {
@@ -278,15 +288,15 @@ function applyMode(mode) {
     });
 
     if (dom.channelList) {
-        dom.channelList.style.display = mode === 'patient' ? 'none' : 'flex';
+        dom.channelList.style.display = mode === 'simple' ? 'none' : 'flex';
     }
 
     if (dom.bandPower) {
-        dom.bandPower.style.display = mode === 'docteur' ? 'block' : 'none';
+        dom.bandPower.style.display = mode === 'compliqué' ? 'block' : 'none';
     }
 
     if (dom.eventsPanel) {
-        dom.eventsPanel.style.display = mode === 'patient' ? 'none' : 'block';
+        dom.eventsPanel.style.display = mode === 'simple' ? 'none' : 'block';
     }
     drawEEG();
     addEvent('Mode changé → ' + MODE_LABELS[mode]);

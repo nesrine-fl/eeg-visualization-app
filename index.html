@@ -24,9 +24,9 @@
             <span class="live-dot"></span> LIVE NEURAL MONITORING
         </div>
         <div class="header-right">
-            <button class="mode-btn active" data-mode="patient" onclick="applyMode('patient')">Patient</button>
-            <button class="mode-btn" data-mode="etudiant" onclick="applyMode('etudiant')">Étudiant</button>
-            <button class="mode-btn" data-mode="docteur" onclick="applyMode('docteur')">Docteur</button>
+            <button class="mode-btn active" data-mode="simple" onclick="applyMode('simple')">simple</button>
+            <button class="mode-btn" data-mode="moyen" onclick="applyMode('moyen')">moyen</button>
+            <button class="mode-btn" data-mode="compliqué" onclick="applyMode('compliqué')">compliqué</button>
             <button class="upload-btn" onclick="document.getElementById('edfFile').click()">📁 Upload .edf</button>
             <input type="file" id="edfFile" accept=".edf" style="display:none" onchange="handleUpload(event)">
         </div>
