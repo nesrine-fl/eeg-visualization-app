@@ -2,58 +2,137 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>NeuroVision</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroVision — EEG Visualization</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<h1>NeuroVision 🧠</h1>
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-left">
+            <span class="logo">🧠 NEUROVISION</span>
+            <span class="version">EEG INTERFACE v1.0</span>
+        </div>
+        <div class="header-center">
+            <span class="live-dot"></span> LIVE NEURAL MONITORING
+        </div>
+        <div class="header-right">
+            <button class="mode-btn active" data-mode="patient" onclick="applyMode('patient')">Patient</button>
+            <button class="mode-btn" data-mode="etudiant" onclick="applyMode('etudiant')">Étudiant</button>
+            <button class="mode-btn" data-mode="docteur" onclick="applyMode('docteur')">Docteur</button>
+            <button class="upload-btn" onclick="document.getElementById('edfFile').click()">📁 Upload .edf</button>
+            <input type="file" id="edfFile" accept=".edf" style="display:none" onchange="handleUpload(event)">
+        </div>
+    </header>
 
-<!-- FORMULAIRE -->
-<label>Nom:</label>
-<input type="text" id="name"><br><br>
+    <!-- MAIN GRID -->
+    <main class="dashboard">
 
-<label>Prénom:</label>
-<input type="text" id="surname"><br><br>
+        <!-- LEFT: PROFIL PATIENT -->
+        <aside class="panel panel-profile">
+            <h3 class="panel-title cyan">PROFIL PATIENT</h3>
 
-<label>Âge:</label>
-<input type="number" id="age" min="1" max="100"><br><br>
+            <div id="profileForm">
+                <div class="form-group">
+                    <label>Nom</label>
+                    <input type="text" id="inputNom" placeholder="Votre nom" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Prénom</label>
+                    <input type="text" id="inputPrenom" placeholder="Votre prénom" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Âge</label>
+                    <input type="number" id="inputAge" placeholder="Âge" min="1" max="120" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label>Sexe</label>
+                    <select id="inputSexe" class="form-input">
+                        <option value="">-- Choisir --</option>
+                        <option value="Masculin">Masculin</option>
+                        <option value="Féminin">Féminin</option>
+                    </select>
+                </div>
+                <button class="btn-submit" onclick="submitProfile()">Valider le profil</button>
+            </div>
 
-<!-- SEXE -->
-<label>Sexe:</label><br>
-<input type="radio" name="sex" id="male"> Homme<br>
-<input type="radio" name="sex" id="female"> Femme<br><br>
+            <div id="profileInfo" style="display:none">
+                <div class="profile-card">
+                    <div class="avatar">👤</div>
+                    <div>
+                        <strong id="displayName">—</strong><br>
+                        <span class="text-muted" id="displayId">—</span>
+                    </div>
+                </div>
+                <div class="info-row"><span>Âge</span><span id="displayAge">—</span></div>
+                <div class="info-row"><span>Sexe</span><span id="displaySexe">—</span></div>
+                <div class="info-row"><span>Session</span><span class="text-green" id="sessionTime">Active — 0m</span></div>
+                <div class="info-row"><span>Neural Map</span><span id="neuralMap">0% Complete</span></div>
+                <div class="info-row"><span>Risk Level</span><span class="text-yellow" id="riskLevel">Normal</span></div>
+                <button class="btn-edit" onclick="editProfile()">✏️ Modifier profil</button>
+            </div>
 
-<!-- MALADIES -->
-<h3>Maladies graves</h3>
-<input type="checkbox" id="diabete"> Diabète<br>
-<input type="checkbox" id="hypertension"> Hypertension<br>
-<input type="checkbox" id="cancer"> Cancer<br><br>
+            <h3 class="panel-title cyan" style="margin-top:20px">CANAUX EEG</h3>
+            <div id="channelList" class="channel-list">
+                <div class="channel"><span class="ch-dot green"></span> Fp1 <span class="ch-val">Active</span></div>
+                <div class="channel"><span class="ch-dot green"></span> Fp2 <span class="ch-val">Active</span></div>
+                <div class="channel"><span class="ch-dot green"></span> F3 <span class="ch-val">Active</span></div>
+                <div class="channel"><span class="ch-dot green"></span> F4 <span class="ch-val">Active</span></div>
+                <div class="channel"><span class="ch-dot yellow"></span> C3 <span class="ch-val">Weak</span></div>
+                <div class="channel"><span class="ch-dot green"></span> C4 <span class="ch-val">Active</span></div>
+            </div>
+        </aside>
 
-<!-- MODES -->
-<h3>Mode</h3>
-<button onclick="setMode('patient')">Patient</button>
-<button onclick="setMode('student')">Student</button>
-<button onclick="setMode('doctor')">Doctor</button>
+        <!-- CENTER: EEG CHART + EVENTS -->
+        <section class="panel panel-center">
+            <div class="chart-header">
+                <div><span class="live-dot"></span> EEG REAL-TIME MONITOR</div>
+                <div class="legend">
+                    <span class="legend-item"><span class="leg-line alpha"></span> ALPHA</span>
+                    <span class="legend-item"><span class="leg-line beta"></span> BETA</span>
+                    <span class="legend-item"><span class="leg-line gamma"></span> GAMMA</span>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="eegChart"></canvas>
+            </div>
 
-<br><br>
+            <div class="events-panel">
+                <h3 class="panel-title">ÉVÉNEMENTS DÉTECTÉS</h3>
+                <div id="eventLog" class="event-log">
+                    <div class="event"><span class="event-time">00:00</span> Session démarrée — en attente de profil</div>
+                </div>
+            </div>
+        </section>
 
-<!-- ANALYSE -->
-<select onchange="setMode(this.value)">
-    <option value="patient">Patient</option>
-    <option value="student">Student</option>
-    <option value="doctor">Doctor</option>
-    </select>
-<button onclick="analyze()">Analyser</button>
-<button onclick="loadEEGData()">Load EEG Data</button>
-<button onclick="drawChart()">Show EEG Chart</button>
+        <!-- RIGHT: METRICS -->
+        <aside class="panel panel-metrics">
+            <div class="metric-card">
+                <h4>STRESS LEVEL</h4>
+                <div class="metric-value red" id="stressVal">75<span class="unit">%</span></div>
+                <div class="metric-bar"><div class="bar-fill red" id="stressBar" style="width:75%"></div></div>
+            </div>
+            <div class="metric-card">
+                <h4>COGNITIVE LOAD <span class="dot blue"></span></h4>
+                <div class="metric-value blue" id="cogVal">40<span class="unit">%</span></div>
+                <div class="metric-bar"><div class="bar-fill blue" id="cogBar" style="width:40%"></div></div>
+            </div>
+            <div class="metric-card">
+                <h4>NEURAL FATIGUE <span class="dot green"></span></h4>
+                <div class="metric-value green" id="fatVal">20<span class="unit">%</span></div>
+                <div class="metric-bar"><div class="bar-fill green" id="fatBar" style="width:20%"></div></div>
+            </div>
 
-<h2>Résultat :</h2>
-<p id="result"></p>
-<input type="file" id="fileInput">
-<button onclick="uploadFile()">Upload EEG</button>
-<canvas id="eegChart" width="600" height="300"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="script.js"></script>
+            <div class="metric-card" id="bandPowerPanel">
+                <h4>BAND POWER</h4>
+                <div class="band-row"><span>Alpha (8-13Hz)</span><span id="bpAlpha">45%</span></div>
+                <div class="band-row"><span>Beta (13-30Hz)</span><span id="bpBeta">30%</span></div>
+                <div class="band-row"><span>Gamma (30+Hz)</span><span id="bpGamma">25%</span></div>
+            </div>
+        </aside>
+    </main>
 
+    <script src="script.js"></script>
 </body>
 </html>
