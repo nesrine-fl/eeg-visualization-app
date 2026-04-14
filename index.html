@@ -7,7 +7,13 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+    <div id="loadingScreen">
+        <div class="loader"></div>
+        <p>Initializing NeuroVision...</p>
+    </div>
+    <div id="alertBox" class="alert-box hidden">
+        ⚠️ Neural Spike Detected
+    </div>
     <!-- HEADER -->
     <header class="header">
         <div class="header-left">
@@ -97,6 +103,9 @@
             <div class="chart-container">
                 <canvas id="eegChart"></canvas>
             </div>
+            <div id="eegExplanation" style="margin-top:10px; font-size:0.8rem; color:#aaa;">
+                Waiting for brain activity...
+            </div>
 
             <div class="events-panel">
                 <h3 class="panel-title">ÉVÉNEMENTS DÉTECTÉS</h3>
@@ -129,6 +138,12 @@
                 <div class="band-row"><span>Alpha (8-13Hz)</span><span id="bpAlpha">45%</span></div>
                 <div class="band-row"><span>Beta (13-30Hz)</span><span id="bpBeta">30%</span></div>
                 <div class="band-row"><span>Gamma (30+Hz)</span><span id="bpGamma">25%</span></div>
+            </div>
+            <div class="metric-card">
+                <h4>EEG EXPLANATION</h4>
+                <div class="band-row"><span>Alpha</span><span>Relaxation</span></div>
+                <div class="band-row"><span>Beta</span><span>Concentration</span></div>
+                <div class="band-row"><span>Gamma</span><span>High thinking</span></div>
             </div>
         </aside>
     </main>

@@ -7,7 +7,7 @@ const MODE_LABELS = {
     etudiant: 'Étudiant',
     docteur: 'Docteur'
 };
-
+let lastExplanation = "";
 const state = {
     currentMode: 'patient',
     tick: 0,
@@ -24,14 +24,20 @@ const dom = {};
 
 document.addEventListener('DOMContentLoaded', initApp);
 
+document.addEventListener("DOMContentLoaded", initApp);
+
 function initApp() {
     cacheElements();
     initCanvas();
     updateMetrics();
     startChartLoop();
-    applyMode('patient');
-}
+    applyMode("patient");
 
+    setTimeout(() => {
+        const loader = document.getElementById("loadingScreen");
+        if (loader) loader.style.display = "none";
+    }, 1200);
+}
 function cacheElements() {
     dom.canvas = document.getElementById('eegChart');
     dom.profileForm = document.getElementById('profileForm');
@@ -72,15 +78,31 @@ function startChartLoop() {
 }
 
 function wave(freq, amp, t) {
-    return amp * Math.sin((2 * Math.PI * freq * t) / 1000) + (Math.random() - 0.5) * amp * 0.4;
+    return amp * Math.sin((2 * Math.PI * freq * t) / 1000)
+        + (Math.random() - 0.5) * amp * 0.2;
 }
 
-function updateChart() {
+function updateChart(){
+    
     var t = state.tick * SAMPLE_INTERVAL;
 
-    state.alphaData.push(wave(10, 50, t));
-    state.betaData.push(wave(20, 35, t));
-    state.gammaData.push(wave(40, 20, t));
+    let a = wave(10, 50, t);
+let b = wave(20, 35, t);
+let g = wave(40, 20, t);
+
+state.alphaData.push(a);
+state.betaData.push(b);
+state.gammaData.push(g);
+
+// detection des spikes
+detectSpike(a, "Alpha");
+detectSpike(b, "Beta");
+detectSpike(g, "Gamma");
+
+// explication pédagogique
+if (state.tick % 12 === 0) {
+    updateExplanation(a, b, g);
+}
 
     state.alphaData.shift();
     state.betaData.shift();
@@ -90,6 +112,7 @@ function updateChart() {
 
     if (state.tick % 10 === 0) updateMetrics();
     drawEEG();
+    if (state.tick % 5 !== 0) return;
 }
 
 function drawEEG() {
@@ -288,8 +311,41 @@ function handleUpload(event) {
     addEvent('Fichier chargé: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)');
     alert('Fichier "' + file.name + '" chargé avec succès !\n(Simulation — traitement EDF non implémenté)');
 }
+function updateExplanation(a, b, g) {
 
+    let text = "";
+
+    if (a > b && a > g) {
+        text = "Alpha dominant → Relaxation state";
+    } else if (b > a && b > g) {
+        text = "Beta dominant → Focus and concentration";
+    } else {
+        text = "Gamma dominant → High cognitive processing";
+    }
+
+    // ❗ change ONLY if different
+    if (text !== lastExplanation) {
+        document.getElementById("eegExplanation").textContent = text;
+        lastExplanation = text;
+    }
+}
 window.submitProfile = submitProfile;
 window.editProfile = editProfile;
 window.applyMode = applyMode;
 window.handleUpload = handleUpload;
+function triggerAlert(message) {
+    addEvent("⚠️ ALERT: " + message);
+
+    const box = document.getElementById("alertBox");
+    box.textContent = "⚠️ " + message;
+    box.classList.remove("hidden");
+
+    setTimeout(() => {
+        box.classList.add("hidden");
+    }, 2000);
+}
+function detectSpike(value, type) {
+    if (value > 100) {
+        triggerAlert(type + " spike detected");
+    }
+}
