@@ -113,6 +113,9 @@ if (state.tick % 12 === 0) {
     if (state.tick % 10 === 0) updateMetrics();
     drawEEG();
     if (state.tick % 5 !== 0) return;
+    if (state.tick % 80 === 0) {
+        askAI();
+    }
 }
 
 function drawEEG() {
@@ -359,3 +362,96 @@ function detectSpike(value, type) {
         triggerAlert(type + " spike detected");
     }
 }
+function getAIResponse(question) {
+    question = question.toLowerCase();
+
+    if (question.includes("stress")) {
+        return "Try to relax and focus on one task at a time.";
+    }
+
+    if (question.includes("focus")) {
+        return "Remove distractions and break your task into steps.";
+    }
+
+    if (question.includes("how")) {
+        return "Start with what you know, then build step by step.";
+    }
+
+    if (question.includes("what")) {
+        return "Try to identify the main concept of the question.";
+    }
+
+    return "Think step by step and focus on key ideas.";
+}
+function askAI() {
+    let input = document.getElementById("userInput").value;
+
+    if (!input) return;
+
+    let response = getAIResponse(input);
+
+    document.getElementById("aiMessages").innerHTML += 
+        "<br>You: " + input + "<br>AI: " + response;
+
+    document.getElementById("userInput").value = "";
+}
+function askAI(type) {
+
+    let text = "";
+    let videos = [];
+
+    if (type === "alpha") {
+    text = "Alpha waves = relaxation state 🧘‍♂️";
+    videos = [
+        "https://www.youtube.com/embed/5qap5aO4i9A",
+        "https://www.youtube.com/embed/lTRiuFIWV54",
+        "https://www.youtube.com/embed/1ZYbU82GVz4"
+    ];
+    }
+
+    else if (type === "beta") {
+    text = "Beta waves = focus & concentration 🧠";
+    videos = [
+        "https://www.youtube.com/embed/2OEL4P1Rz04",
+        "https://www.youtube.com/embed/3q0v0w8h9aQ",
+        "https://www.youtube.com/embed/9Q1Xk3X"
+    ];
+    }
+
+    else if (type === "gamma") {
+    text = "Gamma waves = high cognitive activity ⚡";
+    videos = [
+        "https://www.youtube.com/embed/7p4Ff1k",
+        "https://www.youtube.com/embed/8yTzQp",
+        "https://www.youtube.com/embed/0XyZkL"
+    ];
+    }
+
+    // afficher texte AI
+    document.getElementById("ai-text").innerText = text;
+
+    // afficher vidéos
+    let html = "";
+
+    for (let i = 0; i < videos.length; i++) {
+    html += <iframe width="300" height="200"
+                src="${videos[i]}"
+                frameborder="0"
+                allowfullscreen>
+            </iframe>;
+    }
+
+    document.getElementById("videos").innerHTML = html;
+}
+
+if (state.currentMode === "simple") {
+    // vidéos faciles
+    }
+    if (state.currentMode === "moyen") {
+    // vidéos normales
+    }
+    if (state.currentMode === "complique") {
+    // vidéos avancées
+    }
+    console.log("script loaded");
+    import "./script.js";

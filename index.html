@@ -102,7 +102,21 @@
             </div>
             <div class="chart-container">
                 <canvas id="eegChart"></canvas>
-            </div>
+                <div class="ai-section">
+
+                    <h2>AI EEG Assistant</h2>
+                    
+                    <button onclick="askAI('alpha')">Alpha</button>
+                    <button onclick="askAI('beta')">Beta</button>
+                    <button onclick="askAI('gamma')">Gamma</button>
+                    
+                    <div id="ai-text"></div>
+                    
+                    <div id="videos"></div>
+                    
+                    </div>
+                    <div id="aiHelpList"></div>
+                </div>
             <div id="eegExplanation" style="margin-top:10px; font-size:0.8rem; color:#aaa;">
                 Waiting for brain activity...
             </div>
