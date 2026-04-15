@@ -1,7 +1,7 @@
 {
-  "name": "eeg-brain-visualization",
+  "name": "neurovision",
   "version": "1.0.0",
-  "description": "Real-time EEG brain visualization system with 3D modeling",
+  "description": "NeuroVision - Real-time EEG brain visualization system with 3D modeling",
   "main": "src/index.js",
   "scripts": {
     "start": "react-scripts start",
@@ -31,7 +31,8 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "source-map-loader": "^4.0.2"
   },
   "browserslist": {
     "production": [

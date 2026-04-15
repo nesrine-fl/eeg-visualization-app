@@ -11,17 +11,18 @@ from scipy import signal
 import pandas as pd
 from pydantic import BaseModel
 import logging
+from data.chbmit_processor import CHBMITProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="EEG Brain Visualization API", version="1.0.0")
+app = FastAPI(title="NeuroVision API", version="1.0.0")
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,61 +61,111 @@ class EEGData(BaseModel):
     events: List[Dict[str, Any]]
     band_power: Dict[str, Dict[str, float]]
     heatmap: Dict[str, float]
+    rawData: List[List[float]]
 
 class EEGProcessor:
     def __init__(self):
+        self.chbmit_processor = CHBMITProcessor("backend/data/chbmit")
         self.sampling_rate = 256
-        self.channels = ["FP1", "FP2", "F3", "F4", "C3", "C4", "P3", "P4", "O1", "O2", 
-                        "F7", "F8", "T7", "T8", "FZ", "CZ", "PZ", "FC1", "FC2", 
-                        "CP1", "CP2", "PO1", "PO2"]
-        self.channel_mapping = {
-            "FP1": "frontal_lobe", "FP2": "frontal_lobe",
-            "F3": "frontal_lobe", "F4": "frontal_lobe", 
-            "F7": "frontal_lobe", "F8": "frontal_lobe", "FZ": "frontal_lobe",
-            "FC1": "frontal_lobe", "FC2": "frontal_lobe",
-            "T7": "temporal_lobe", "T8": "temporal_lobe",
-            "C3": "motor_cortex", "C4": "motor_cortex", "CZ": "motor_cortex",
-            "CP1": "sensory_cortex", "CP2": "sensory_cortex",
-            "P3": "parietal_lobe", "P4": "parietal_lobe", "PZ": "parietal_lobe",
-            "PO1": "occipital_lobe", "PO2": "occipital_lobe",
-            "O1": "occipital_lobe", "O2": "occipital_lobe"
-        }
+        self.raw_data = None
+        self.clean_data = None
+        self.band_power = None
+        self.heatmap = None
+        self.events = None
+        self.current_stream_index = 0
+        self.stream_window_size = 2560  # 10 seconds of data at 256 Hz
         
-    def load_sample_data(self) -> np.ndarray:
-        """Generate sample EEG data for demonstration"""
-        duration_seconds = 120
-        n_samples = int(duration_seconds * self.sampling_rate)
-        n_channels = len(self.channels)
+        # Load real EEG data once at startup
+        self._load_real_eeg_data()
+    
+    def _load_real_eeg_data(self):
+        """Load real EEG data from chb01_03.edf file"""
+        try:
+            logger.info("Loading real EEG data from chb01_03.edf...")
+            
+            # Load the actual chb01_03.edf file directly with MNE
+            import os
+            from pathlib import Path
+            # Get the directory where this script is located
+            script_dir = Path(__file__).parent
+            # Use absolute path from script directory
+            file_path = script_dir / "data" / "chbmit" / "chb01" / "chb01_03.edf"
+            if not file_path.exists():
+                # Try alternative path from project root
+                file_path = script_dir.parent / "data" / "chb01_03.edf"
+            if not file_path.exists():
+                # Try data directory in backend
+                file_path = script_dir / "data" / "chb01_03.edf"
+            if not file_path.exists():
+                raise FileNotFoundError(f"Could not find chb01_03.edf file. Tried: {file_path}")
+            logger.info(f"Loading EEG data from: {file_path}")
+            raw = mne.io.read_raw_edf(file_path, preload=True, verbose=False)
+            self.raw_data = raw.get_data()
+            
+            # Get actual channel names from the EDF file
+            self.channels = raw.ch_names
+            logger.info(f"Loaded {len(self.channels)} channels: {self.channels}")
+            
+            # Update channel mapping based on actual channels
+            self.channel_mapping = {}
+            for ch in self.channels:
+                # Map to brain regions based on channel naming
+                if 'FP' in ch or 'F' in ch:
+                    self.channel_mapping[ch] = 'frontal_lobe'
+                elif 'T' in ch:
+                    self.channel_mapping[ch] = 'temporal_lobe'
+                elif 'C' in ch:
+                    self.channel_mapping[ch] = 'motor_cortex'
+                elif 'P' in ch:
+                    self.channel_mapping[ch] = 'parietal_lobe'
+                elif 'O' in ch:
+                    self.channel_mapping[ch] = 'occipital_lobe'
+                else:
+                    self.channel_mapping[ch] = 'frontal_lobe'  # default
+            
+            # Process the data once (limit to first 5 minutes for performance)
+            max_samples = min(self.raw_data.shape[1], 256 * 60 * 5)  # 5 minutes max
+            self.raw_data = self.raw_data[:, :max_samples]
+            self.clean_data = self.preprocess_signal(self.raw_data)
+            
+            # Compute features once
+            self.band_power = self.compute_band_power(self.clean_data)
+            self.heatmap = self.generate_heatmap(self.band_power)
+            self.events = self.detect_events(self.clean_data)
+            
+            logger.info(f"Successfully loaded and processed EEG data: {self.clean_data.shape}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load real EEG data: {e}")
+            raise
+    
+    def get_data_window(self, window_size: int = None) -> np.ndarray:
+        """Get a window of data for streaming"""
+        if self.clean_data is None:
+            return np.zeros((23, window_size or self.stream_window_size))
         
-        # Generate realistic EEG signals
-        t = np.linspace(0, duration_seconds, n_samples)
-        data = np.zeros((n_channels, n_samples))
+        window_size = window_size or self.stream_window_size
+        total_samples = self.clean_data.shape[1]
         
-        for i, channel in enumerate(self.channels):
-            # Base oscillations for different brain wave bands
-            delta = 5 * np.sin(2 * np.pi * 2 * t + np.random.random() * 2 * np.pi)
-            theta = 3 * np.sin(2 * np.pi * 5 * t + np.random.random() * 2 * np.pi)
-            alpha = 4 * np.sin(2 * np.pi * 10 * t + np.random.random() * 2 * np.pi)
-            beta = 2 * np.sin(2 * np.pi * 20 * t + np.random.random() * 2 * np.pi)
-            gamma = 1 * np.sin(2 * np.pi * 35 * t + np.random.random() * 2 * np.pi)
-            
-            # Add noise
-            noise = np.random.normal(0, 0.5, n_samples)
-            
-            # Combine signals
-            signal_data = delta + theta + alpha + beta + gamma + noise
-            
-            # Add occasional spikes (seizure simulation)
-            if np.random.random() > 0.7:  # 30% chance of seizure activity
-                spike_time = np.random.randint(n_samples // 4, 3 * n_samples // 4)
-                spike_width = int(0.5 * self.sampling_rate)  # 0.5 second spike
-                spike_start = max(0, spike_time - spike_width // 2)
-                spike_end = min(n_samples, spike_time + spike_width // 2)
-                signal_data[spike_start:spike_end] += np.random.normal(0, 50, spike_end - spike_start)
-            
-            data[i] = signal_data
-            
-        return data
+        # Get current window
+        start_idx = self.current_stream_index
+        end_idx = min(start_idx + window_size, total_samples)
+        
+        if end_idx - start_idx < window_size:
+            # Loop back to beginning if we reach the end
+            self.current_stream_index = 0
+            start_idx = 0
+            end_idx = window_size
+        else:
+            self.current_stream_index = end_idx
+        
+        return self.clean_data[:, start_idx:end_idx]
+    
+    def detect_events(self, data: np.ndarray) -> List[Dict[str, Any]]:
+        """Detect both artifacts and seizures in EEG data"""
+        artifacts = self.detect_artifacts(data)
+        seizures = self.detect_seizures(data)
+        return artifacts + seizures
     
     def preprocess_signal(self, raw_data: np.ndarray) -> np.ndarray:
         """Apply preprocessing filters to EEG signal"""
@@ -220,7 +271,7 @@ class EEGProcessor:
             for band, (low, high) in bands.items():
                 freqs, psd = signal.welch(data[i], fs=self.sampling_rate, nperseg=256)
                 band_mask = (freqs >= low) & (freqs <= high)
-                power = np.trapz(psd[band_mask], freqs[band_mask])
+                power = np.trapezoid(psd[band_mask], freqs[band_mask])
                 channel_power[band] = float(power)
                 total_power += power
             
@@ -261,39 +312,37 @@ class EEGProcessor:
         
         return heatmap
 
-# Initialize processor
-processor = EEGProcessor()
+# Initialize processor (loads real EEG data at startup)
+try:
+    processor = EEGProcessor()
+    logger.info("EEG Processor initialized successfully with real data")
+except Exception as e:
+    logger.error(f"Failed to initialize EEG Processor: {e}")
+    processor = None
 
 @app.get("/")
 async def root():
-    return {"message": "EEG Brain Visualization API", "version": "1.0.0"}
+    return {"message": "NeuroVision API", "version": "1.0.0"}
 
 @app.post("/upload")
 async def upload_eeg(file: UploadFile = File(...)):
     """Upload and process EEG file"""
     try:
-        # For now, use sample data. In production, process actual file
-        raw_data = processor.load_sample_data()
-        clean_data = processor.preprocess_signal(raw_data)
+        if processor is None:
+            return JSONResponse(status_code=503, content={"error": "EEG processor not initialized"})
         
-        # Detect events
-        artifacts = processor.detect_artifacts(clean_data)
-        seizures = processor.detect_seizures(clean_data)
-        events = artifacts + seizures
-        
-        # Compute features
-        band_power = processor.compute_band_power(clean_data)
-        heatmap = processor.generate_heatmap(band_power)
+        # Use pre-processed real data
+        duration_seconds = processor.clean_data.shape[1] / processor.sampling_rate
         
         # Create response
         eeg_data = EEGData(
             timestamp=datetime.now().isoformat(),
             channels=processor.channels,
-            duration_seconds=120,
+            duration_seconds=duration_seconds,
             sampling_rate=processor.sampling_rate,
-            events=events,
-            band_power=band_power,
-            heatmap=heatmap
+            events=processor.events,
+            band_power=processor.band_power,
+            heatmap=processor.heatmap
         )
         
         return eeg_data.dict()
@@ -304,35 +353,31 @@ async def upload_eeg(file: UploadFile = File(...)):
 
 @app.get("/sample-data")
 async def get_sample_data():
-    """Get sample EEG data for demonstration"""
+    """Get real EEG data from CHB-MIT dataset"""
     try:
-        raw_data = processor.load_sample_data()
-        clean_data = processor.preprocess_signal(raw_data)
+        if processor is None:
+            return JSONResponse(status_code=503, content={"error": "EEG processor not initialized"})
         
-        # Detect events
-        artifacts = processor.detect_artifacts(clean_data)
-        seizures = processor.detect_seizures(clean_data)
-        events = artifacts + seizures
+        # Use pre-processed real data
+        duration_seconds = processor.clean_data.shape[1] / processor.sampling_rate
         
-        # Compute features
-        band_power = processor.compute_band_power(clean_data)
-        heatmap = processor.generate_heatmap(band_power)
-        
-        # Create response
+        # Create response - include actual signal data (first 2560 samples for each channel)
+        signal_data = processor.clean_data[:, :2560].tolist() if processor.clean_data is not None else []
         eeg_data = EEGData(
             timestamp=datetime.now().isoformat(),
             channels=processor.channels,
-            duration_seconds=120,
+            duration_seconds=duration_seconds,
             sampling_rate=processor.sampling_rate,
-            events=events,
-            band_power=band_power,
-            heatmap=heatmap
+            events=processor.events,
+            band_power=processor.band_power,
+            heatmap=processor.heatmap,
+            rawData=signal_data
         )
         
         return eeg_data.dict()
         
     except Exception as e:
-        logger.error(f"Error generating sample data: {e}")
+        logger.error(f"Error loading real EEG data: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.websocket("/ws")
@@ -341,20 +386,30 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Generate real-time data updates
-            raw_data = processor.load_sample_data()
-            clean_data = processor.preprocess_signal(raw_data)
+            if processor is None:
+                await manager.send_personal_message(
+                    json.dumps({"error": "EEG processor not initialized"}), 
+                    websocket
+                )
+                await asyncio.sleep(1)
+                continue
+            
+            # Get real-time data window from pre-loaded EEG data
+            data_window = processor.get_data_window()
             
             # Compute features for current time window
-            band_power = processor.compute_band_power(clean_data)
+            band_power = processor.compute_band_power(data_window)
             heatmap = processor.generate_heatmap(band_power)
+            
+            # Detect events in current window
+            events = processor.detect_events(data_window)
             
             # Send update
             update_data = {
                 "timestamp": datetime.now().isoformat(),
                 "band_power": band_power,
                 "heatmap": heatmap,
-                "events": processor.detect_seizures(clean_data)[:5]  # Limit events for performance
+                "events": events[:5]  # Limit events for performance
             }
             
             await manager.send_personal_message(json.dumps(update_data), websocket)
@@ -368,18 +423,19 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/events")
 async def get_events():
-    """Get detected events (seizures, artifacts)"""
+    """Get detected events from real EEG data"""
     try:
-        raw_data = processor.load_sample_data()
-        clean_data = processor.preprocess_signal(raw_data)
+        if processor is None:
+            return JSONResponse(status_code=503, content={"error": "EEG processor not initialized"})
         
-        artifacts = processor.detect_artifacts(clean_data)
-        seizures = processor.detect_seizures(clean_data)
+        # Separate events by type
+        artifacts = [e for e in processor.events if e.get('type') == 'artifact']
+        seizures = [e for e in processor.events if e.get('type') == 'seizure']
         
         return {
             "artifacts": artifacts,
             "seizures": seizures,
-            "total_events": len(artifacts) + len(seizures)
+            "total_events": len(processor.events)
         }
         
     except Exception as e:
@@ -388,18 +444,15 @@ async def get_events():
 
 @app.get("/heatmap")
 async def get_heatmap():
-    """Get current brain activity heatmap"""
+    """Get current brain activity heatmap from real EEG data"""
     try:
-        raw_data = processor.load_sample_data()
-        clean_data = processor.preprocess_signal(raw_data)
-        
-        band_power = processor.compute_band_power(clean_data)
-        heatmap = processor.generate_heatmap(band_power)
+        if processor is None:
+            return JSONResponse(status_code=503, content={"error": "EEG processor not initialized"})
         
         return {
             "timestamp": datetime.now().isoformat(),
-            "heatmap": heatmap,
-            "band_power": band_power
+            "heatmap": processor.heatmap,
+            "band_power": processor.band_power
         }
         
     except Exception as e:
@@ -409,12 +462,23 @@ async def get_heatmap():
 @app.get("/status")
 async def get_status():
     """Get system status"""
+    if processor is None:
+        return {
+            "status": "error",
+            "connections": len(manager.active_connections),
+            "timestamp": datetime.now().isoformat(),
+            "channels": 0,
+            "sampling_rate": 256,
+            "error": "EEG processor not initialized"
+        }
+    
     return {
         "status": "active",
         "connections": len(manager.active_connections),
         "timestamp": datetime.now().isoformat(),
         "channels": len(processor.channels),
-        "sampling_rate": processor.sampling_rate
+        "sampling_rate": processor.sampling_rate,
+        "data_loaded": processor.clean_data is not None
     }
 
 if __name__ == "__main__":

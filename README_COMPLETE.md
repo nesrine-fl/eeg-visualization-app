@@ -103,6 +103,7 @@ npm run dev
 ```
 windsurf-project/
 |-- backend/
+
 |   |-- main.py                 # FastAPI server
 |   |-- requirements.txt        # Python dependencies
 |   |-- data/

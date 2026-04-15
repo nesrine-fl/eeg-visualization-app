@@ -49,17 +49,19 @@ function BrainRegion({ region, activity, isSeizure, isArtifact }) {
   const [hovered, setHovered] = useState(false);
   
   const regionData = BRAIN_REGIONS[region];
-  const intensity = Math.min(activity * 2, 1);
+  // Use real activity value from backend heatmap, ensure it's a number
+  const activityValue = typeof activity === 'number' ? activity : 0;
+  const intensity = Math.min(activityValue * 2, 1);
   
-  // Determine color based on state
+  // Determine color based on real activity from backend
   let color = regionData.color;
   if (isSeizure) {
     color = '#ff0000'; // Red for seizure
   } else if (isArtifact) {
     color = '#ffaa00'; // Orange for artifact
-  } else if (activity > 0.7) {
+  } else if (activityValue > 0.7) {
     color = '#00ff00'; // Green for high activity
-  } else if (activity > 0.4) {
+  } else if (activityValue > 0.4) {
     color = '#ffff00'; // Yellow for medium activity
   } else {
     color = '#0066ff'; // Blue for low activity
@@ -67,16 +69,17 @@ function BrainRegion({ region, activity, isSeizure, isArtifact }) {
   
   useFrame((state) => {
     if (meshRef.current) {
+      const time = Date.now() * 0.001; // Convert to seconds
       // Pulsing effect for high activity
-      if (activity > 0.5 || isSeizure) {
+      if (activityValue > 0.5 || isSeizure) {
         meshRef.current.scale.setScalar(
-          regionData.size * (1 + Math.sin(state.clock.elapsedTime * 3) * 0.1 * intensity)
+          regionData.size * (1 + Math.sin(time * 3) * 0.1 * intensity)
         );
       }
       
       // Rotation for seizures
       if (isSeizure) {
-        meshRef.current.rotation.y = state.clock.elapsedTime * 2;
+        meshRef.current.rotation.y = time * 2;
       }
     }
   });
@@ -121,7 +124,7 @@ function BrainMesh({ heatmap, seizures, artifacts }) {
   useFrame((state) => {
     if (meshRef.current) {
       // Subtle rotation
-      meshRef.current.rotation.y = state.clock.elapsedTime * 0.1;
+      meshRef.current.rotation.y = Date.now() * 0.0001;
     }
   });
   
@@ -155,7 +158,7 @@ function BrainConnections() {
   
   useFrame((state) => {
     if (linesRef.current) {
-      linesRef.current.rotation.y = state.clock.elapsedTime * 0.05;
+      linesRef.current.rotation.y = Date.now() * 0.00005;
     }
   });
   
@@ -187,20 +190,7 @@ function BrainConnections() {
 }
 
 export default function Brain3D({ heatmap = {}, seizures = [], artifacts = [], mode = 'student' }) {
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setIsLoading(false), 1000);
-  }, []);
-  
-  if (isLoading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-900">
-        <div className="text-white text-xl">Loading 3D Brain Model...</div>
-      </div>
-    );
-  }
+  // No loading state - render immediately with real data
   
   return (
     <div className="w-full h-full relative">

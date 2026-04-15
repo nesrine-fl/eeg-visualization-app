@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Brain3D from '../components/Brain3D';
 import EEGChart from '../components/EEGChart';
 import { Brain, BookOpen, Activity, Zap, Eye, Hand } from 'lucide-react';
@@ -7,12 +7,18 @@ export default function StudentMode() {
   const [selectedTool, setSelectedTool] = useState('neural-scan');
   const [showRaw, setShowRaw] = useState(true);
   const [showClean, setShowClean] = useState(true);
-  const [selectedChannels, setSelectedChannels] = useState(['FP1', 'F3', 'C3', 'P3', 'O1']);
+  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [availableChannels, setAvailableChannels] = useState([]);
   const [heatmap, setHeatmap] = useState({});
   const [seizures, setSeizures] = useState([]);
   const [artifacts, setArtifacts] = useState([]);
   const [bandPower, setBandPower] = useState({});
   const [events, setEvents] = useState([]);
+  const [signalData, setSignalData] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [systemStatus, setSystemStatus] = useState('initializing');
+  const [error, setError] = useState(null);
+  const wsRef = useRef(null);
   
   const diagnosticTools = [
     { id: 'neural-scan', name: 'Neural Scan', icon: Brain },
@@ -40,62 +46,257 @@ export default function StudentMode() {
     { name: 'Chewing/Movement', icon: Activity, description: 'Jaw and head movements' }
   ];
   
+  // Check system status and load initial data on component mount
   useEffect(() => {
-    // Simulate real-time data updates
-    const interval = setInterval(() => {
-      // Generate sample heatmap data
-      const sampleHeatmap = {
-        frontal_lobe: Math.random() * 0.8,
-        temporal_lobe: Math.random() * 0.6,
-        motor_cortex: Math.random() * 0.7,
-        sensory_cortex: Math.random() * 0.5,
-        parietal_lobe: Math.random() * 0.4,
-        occipital_lobe: Math.random() * 0.3
-      };
-      setHeatmap(sampleHeatmap);
-      
-      // Generate sample band power data
-      const sampleBandPower = {};
-      selectedChannels.forEach(channel => {
-        sampleBandPower[channel] = {
-          delta: Math.random() * 20 + 10,
-          theta: Math.random() * 15 + 10,
-          alpha: Math.random() * 25 + 15,
-          beta: Math.random() * 20 + 15,
-          gamma: Math.random() * 10 + 5
-        };
-      });
-      setBandPower(sampleBandPower);
-      
-      // Generate sample events
-      const sampleEvents = [];
-      if (Math.random() > 0.8) {
-        sampleEvents.push({
-          type: 'seizure',
-          channel: selectedChannels[Math.floor(Math.random() * selectedChannels.length)],
-          time: Math.random() * 10,
-          amplitude: Math.random() * 100 + 50,
-          severity: 'medium'
-        });
+    const initializeData = async () => {
+      try {
+        // Check system status
+        const statusResponse = await fetch('http://localhost:8000/status');
+        const status = await statusResponse.json();
+        
+        if (status.status === 'error') {
+          throw new Error(status.error || 'Backend initialization failed');
+        }
+        
+        setSystemStatus(status.status);
+        setIsConnected(true);
+        setError(null);
+        
+        // Load initial EEG data
+        const dataResponse = await fetch('http://localhost:8000/sample-data');
+        const data = await dataResponse.json();
+        
+        // Set available channels from backend
+        setAvailableChannels(data.channels || []);
+        
+        // Select first 5 channels by default
+        const defaultChannels = (data.channels || []).slice(0, 5);
+        setSelectedChannels(defaultChannels);
+        
+        // Set all data from backend
+        setHeatmap(data.heatmap || {});
+        setBandPower(data.band_power || {});
+        setEvents(data.events || []);
+        
+        // Update seizures and artifacts for 3D view
+        setSeizures((data.events || []).filter(e => e.type === 'seizure').map(e => ({ region: 'temporal_lobe' })));
+        setArtifacts((data.events || []).filter(e => e.type === 'artifact').map(e => ({ region: 'frontal_lobe' })));
+        
+      } catch (err) {
+        console.error('Failed to initialize data:', err);
+        setError(err.message);
+        setIsConnected(false);
+        setSystemStatus('error');
+        
+        // Retry after 3 seconds
+        setTimeout(initializeData, 3000);
       }
-      if (Math.random() > 0.7) {
-        sampleEvents.push({
-          type: 'artifact',
-          channel: selectedChannels[Math.floor(Math.random() * selectedChannels.length)],
-          time: Math.random() * 10,
-          amplitude: Math.random() * 80 + 20,
-          artifactType: artifactTypes[Math.floor(Math.random() * artifactTypes.length)].name
-        });
+    };
+
+    initializeData();
+  }, []);
+
+  // Load initial data from backend
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/sample-data');
+        const data = await response.json();
+        
+        setHeatmap(data.heatmap);
+        setBandPower(data.band_power);
+        setEvents(data.events);
+        setSignalData(data.rawData || []);
+        setAvailableChannels(data.channels || []);
+        
+        // Update seizures and artifacts for 3D view
+        setSeizures(data.events.filter(e => e.type === 'seizure').map(e => ({ region: 'temporal_lobe' })));
+        setArtifacts(data.events.filter(e => e.type === 'artifact').map(e => ({ region: 'frontal_lobe' })));
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
       }
-      setEvents(sampleEvents);
+    };
+
+    if (isConnected) {
+      loadInitialData();
+    }
+  }, [isConnected]);
+
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (!isConnected || availableChannels.length === 0) return;
+
+    const connectWebSocket = () => {
+      // Add a small delay to ensure backend is ready
+      setTimeout(() => {
+        try {
+          wsRef.current = new WebSocket('ws://localhost:8000/ws');
+          
+          wsRef.current.onopen = () => {
+            console.log('WebSocket connected');
+            setError(null);
+          };
+          
+          wsRef.current.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                setError(data.error);
+                return;
+              }
+              
+              setHeatmap(data.heatmap);
+              setBandPower(data.band_power);
+              setEvents(data.events);
+              
+              // Update seizures and artifacts for 3D view
+              setSeizures((data.events || []).filter(e => e.type === 'seizure').map(e => ({ region: 'temporal_lobe' })));
+              setArtifacts((data.events || []).filter(e => e.type === 'artifact').map(e => ({ region: 'frontal_lobe' })));
+            } catch (error) {
+              console.error('Error parsing WebSocket message:', error);
+              setError('Failed to parse WebSocket data');
+            }
+          };
+          
+          wsRef.current.onclose = () => {
+            console.log('WebSocket disconnected, attempting to reconnect...');
+            setError('WebSocket disconnected');
+            setTimeout(connectWebSocket, 3000);
+          };
+          
+          wsRef.current.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            setError('WebSocket connection error');
+          };
+        } catch (err) {
+          console.error('Failed to create WebSocket:', err);
+          setError('Failed to connect to WebSocket');
+        }
+      }, 1000); // 1 second delay
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [isConnected, availableChannels]);
+
+  // Render content based on selected tool
+  const renderToolContent = () => {
+    switch (selectedTool) {
+      case 'neural-scan':
+        return (
+          <>
+            {/* 3D Brain Visualization */}
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-xl font-semibold mb-4">3D Brain Activity</h3>
+              <div className="h-80">
+                <Brain3D 
+                  heatmap={heatmap} 
+                  seizures={seizures} 
+                  artifacts={artifacts} 
+                  mode="student"
+                />
+              </div>
+            </div>
+          </>
+        );
       
-      // Update seizures and artifacts for 3D view
-      setSeizures(sampleEvents.filter(e => e.type === 'seizure').map(e => ({ region: 'temporal_lobe' })));
-      setArtifacts(sampleEvents.filter(e => e.type === 'artifact').map(e => ({ region: 'frontal_lobe' })));
-    }, 2000);
-    
-    return () => clearInterval(interval);
-  }, [selectedChannels]);
+      case 'eeg-analysis':
+        return (
+          <>
+            {/* EEG Signal Analysis */}
+            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+              <h3 className="text-xl font-semibold mb-4">EEG Signal Analysis</h3>
+              <div className="h-80">
+                <EEGChart 
+                  data={{
+                    channels: availableChannels,
+                    rawData: signalData || [],
+                    samplingRate: 256
+                  }}
+                  mode="student"
+                  showRaw={showRaw}
+                  showClean={showClean}
+                  selectedChannels={selectedChannels}
+                  events={events}
+                />
+              </div>
+            </div>
+          </>
+        );
+      
+      case 'stimulation-map':
+        return (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Stimulation Map</h3>
+            <div className="h-80 flex items-center justify-center">
+              <div className="text-center">
+                <Zap className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                <p className="text-gray-400">Neural stimulation mapping interface</p>
+                <p className="text-sm text-gray-500 mt-2">Interactive brain region stimulation planning</p>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'signal-monitor':
+        return (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Signal Monitor</h3>
+            <div className="h-80 flex items-center justify-center">
+              <div className="text-center">
+                <Activity className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <p className="text-gray-400">Real-time signal monitoring</p>
+                <p className="text-sm text-gray-500 mt-2">Live EEG signal quality and amplitude tracking</p>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'reports':
+        return (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Analysis Reports</h3>
+            <div className="h-80 flex items-center justify-center">
+              <div className="text-center">
+                <BookOpen className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                <p className="text-gray-400">EEG Analysis Reports</p>
+                <p className="text-sm text-gray-500 mt-2">Detailed brain activity analysis and insights</p>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'calibration':
+        return (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">System Calibration</h3>
+            <div className="h-80 flex items-center justify-center">
+              <div className="text-center">
+                <Activity className="w-16 h-16 text-purple-500 mx-auto mb-4" />
+                <p className="text-gray-400">EEG System Calibration</p>
+                <p className="text-sm text-gray-500 mt-2">Electrode impedance and signal calibration</p>
+              </div>
+            </div>
+          </div>
+        );
+      
+      default:
+        return (
+          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 className="text-xl font-semibold mb-4">Select a Tool</h3>
+            <div className="h-80 flex items-center justify-center">
+              <p className="text-gray-400">Choose a diagnostic tool from the sidebar</p>
+            </div>
+          </div>
+        );
+    }
+  };
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white p-6">
@@ -108,13 +309,21 @@ export default function StudentMode() {
                 <BookOpen className="w-8 h-8" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">EEG Learning Mode</h1>
+                <h1 className="text-2xl font-bold">NeuroVision - Learning Mode</h1>
                 <p className="text-gray-400">Interactive Brain Signal Analysis</p>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-green-400 text-lg font-semibold">System Nominal</div>
-              <p className="text-gray-400 text-sm">All Channels Active</p>
+              <div className={`text-lg font-semibold ${
+                systemStatus === 'active' ? 'text-green-400' : 
+                systemStatus === 'error' ? 'text-red-400' : 'text-yellow-400'
+              }`}>
+                {systemStatus === 'active' ? 'System Active' : 
+                 systemStatus === 'error' ? 'System Error' : 'System Connecting...'}
+              </div>
+              <p className="text-gray-400 text-sm">
+                {error ? error : (isConnected ? 'Connected to Backend' : 'Disconnected')}
+              </p>
             </div>
           </div>
         </div>
@@ -172,9 +381,11 @@ export default function StudentMode() {
               
               {/* Channel Selection */}
               <div className="mt-6">
-                <h4 className="text-sm font-semibold text-gray-400 mb-3">Active Channels</h4>
-                <div className="space-y-2">
-                  {['FP1', 'F3', 'C3', 'P3', 'O1', 'F7', 'T7', 'PZ'].map(channel => (
+                <h4 className="text-sm font-semibold text-gray-400 mb-3">
+                  Active Channels ({selectedChannels.length}/{availableChannels.length})
+                </h4>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {availableChannels.map(channel => (
                     <label key={channel} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -198,32 +409,7 @@ export default function StudentMode() {
           
           {/* Main Visualization Area */}
           <div className="lg:col-span-3 space-y-6">
-            {/* 3D Brain Visualization */}
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <h3 className="text-xl font-semibold mb-4">3D Brain Activity</h3>
-              <div className="h-80">
-                <Brain3D 
-                  heatmap={heatmap} 
-                  seizures={seizures} 
-                  artifacts={artifacts} 
-                  mode="student"
-                />
-              </div>
-            </div>
-            
-            {/* EEG Signal Analysis */}
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
-              <h3 className="text-xl font-semibold mb-4">EEG Signal Analysis</h3>
-              <div className="h-80">
-                <EEGChart 
-                  mode="student"
-                  showRaw={showRaw}
-                  showClean={showClean}
-                  selectedChannels={selectedChannels}
-                  events={events}
-                />
-              </div>
-            </div>
+            {renderToolContent()}
             
             {/* Educational Content */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

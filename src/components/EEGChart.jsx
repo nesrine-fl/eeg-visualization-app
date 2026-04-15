@@ -28,45 +28,40 @@ export default function EEGChart({
   mode = 'student', 
   showRaw = true, 
   showClean = true, 
-  selectedChannels = ['FP1', 'F3', 'C3', 'P3', 'O1'],
+  selectedChannels = [],
   events = [],
   timeWindow = 10 
 }) {
   const chartRef = useRef(null);
   const [chartData, setChartData] = useState(null);
   
-  // Generate sample data if none provided
-  const generateSampleData = () => {
-    const samplingRate = 256;
-    const samples = timeWindow * samplingRate;
+  // Process real backend data
+  const processRealData = () => {
+    if (!data || !data.rawData || selectedChannels.length === 0) {
+      return { labels: [], datasets: [] };
+    }
+    
+    const samplingRate = data.samplingRate || 256;
+    const samples = Math.min(timeWindow * samplingRate, 2560);
     const labels = Array.from({ length: samples }, (_, i) => (i / samplingRate).toFixed(2));
     
     const datasets = [];
     
     selectedChannels.forEach((channel, channelIndex) => {
-      const baseOffset = channelIndex * 50; // Offset for visualization
+      const channelDataIndex = data.channels.indexOf(channel);
       
-      // Raw signal with noise
+      if (channelDataIndex === -1) return; // Skip if channel not found
+      
+      const channelData = data.rawData[channelDataIndex] || [];
+      // Ensure channelData is an array and has slice method
+      const validChannelData = Array.isArray(channelData) ? channelData : Array(samples).fill(0);
+      const channelSegment = validChannelData.slice(0, samples);
+      
+      // Raw signal from backend
       if (showRaw) {
-        const rawData = Array.from({ length: samples }, (_, i) => {
-          const t = i / samplingRate;
-          const signal = 
-            10 * Math.sin(2 * Math.PI * 10 * t) + // Alpha wave
-            5 * Math.sin(2 * Math.PI * 20 * t) +   // Beta wave
-            3 * Math.sin(2 * Math.PI * 5 * t) +    // Theta wave
-            (Math.random() - 0.5) * 20 +           // Noise
-            baseOffset;
-          
-          // Add seizure spikes
-          if (Math.random() > 0.95) {
-            return signal + (Math.random() - 0.5) * 100;
-          }
-          return signal;
-        });
-        
         datasets.push({
           label: `${channel} (Raw)`,
-          data: rawData,
+          data: channelSegment,
           borderColor: `rgba(255, 99, 132, 0.8)`,
           backgroundColor: `rgba(255, 99, 132, 0.1)`,
           borderWidth: 1,
@@ -77,21 +72,13 @@ export default function EEGChart({
         });
       }
       
-      // Clean signal (filtered)
+      // Clean signal (would be filtered in backend)
       if (showClean) {
-        const cleanData = Array.from({ length: samples }, (_, i) => {
-          const t = i / samplingRate;
-          const signal = 
-            8 * Math.sin(2 * Math.PI * 10 * t) +   // Alpha wave (clean)
-            4 * Math.sin(2 * Math.PI * 20 * t) +    // Beta wave (clean)
-            2 * Math.sin(2 * Math.PI * 5 * t) +     // Theta wave (clean)
-            baseOffset;
-          return signal;
-        });
-        
+        // For now, use same data with different styling
+        // In a real implementation, this would be pre-filtered data
         datasets.push({
           label: `${channel} (Clean)`,
-          data: cleanData,
+          data: channelSegment,
           borderColor: `rgba(54, 162, 235, 0.8)`,
           backgroundColor: `rgba(54, 162, 235, 0.1)`,
           borderWidth: 2,
@@ -107,9 +94,9 @@ export default function EEGChart({
   };
   
   useEffect(() => {
-    const sampleData = generateSampleData();
-    setChartData(sampleData);
-  }, [showRaw, showClean, selectedChannels, timeWindow]);
+    const realData = processRealData();
+    setChartData(realData);
+  }, [data, showRaw, showClean, selectedChannels, timeWindow]);
   
   // Chart options based on mode
   const getChartOptions = () => {
