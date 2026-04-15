@@ -51,7 +51,10 @@ export default function StudentMode() {
     const initializeData = async () => {
       try {
         // Check system status
-        const statusResponse = await fetch('http://localhost:8000/status');
+        const backendUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://neurovision-backend.onrender.com/status'
+          : 'http://localhost:8000/status';
+        const statusResponse = await fetch(backendUrl);
         const status = await statusResponse.json();
         
         if (status.status === 'error') {
@@ -100,7 +103,10 @@ export default function StudentMode() {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/sample-data');
+        const backendUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://neurovision-backend.onrender.com/sample-data'
+          : 'http://localhost:8000/sample-data';
+        const response = await fetch(backendUrl);
         const data = await response.json();
         
         setHeatmap(data.heatmap);
@@ -130,7 +136,10 @@ export default function StudentMode() {
       // Add a small delay to ensure backend is ready
       setTimeout(() => {
         try {
-          wsRef.current = new WebSocket('ws://localhost:8000/ws');
+          const wsUrl = process.env.NODE_ENV === 'production' 
+            ? 'wss://neurovision-backend.onrender.com/ws'
+            : 'ws://localhost:8000/ws';
+          wsRef.current = new WebSocket(wsUrl);
           
           wsRef.current.onopen = () => {
             console.log('WebSocket connected');

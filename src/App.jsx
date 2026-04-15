@@ -10,7 +10,10 @@ function App() {
   useEffect(() => {
     const checkBackendConnection = async () => {
       try {
-        const response = await fetch('http://localhost:8000/status');
+        const backendUrl = process.env.NODE_ENV === 'production' 
+          ? 'https://neurovision-backend.onrender.com/status'
+          : 'http://localhost:8000/status';
+        const response = await fetch(backendUrl);
         
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: Backend not responding`);

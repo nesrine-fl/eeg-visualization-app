@@ -17,12 +17,15 @@ from data.chbmit_processor import CHBMITProcessor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+import os
+port = int(os.environ.get("PORT", 8000))
+
 app = FastAPI(title="NeuroVision API", version="1.0.0")
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "https://nesrine-fl.github.io"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
