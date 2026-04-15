@@ -399,59 +399,40 @@ function askAI(type) {
 
     let text = "";
     let videos = [];
-
+    
     if (type === "alpha") {
-    text = "Alpha waves = relaxation state 🧘‍♂️";
-    videos = [
+        text = "Alpha waves = relaxation 🧘";
+        videos = [
         "https://www.youtube.com/embed/5qap5aO4i9A",
         "https://www.youtube.com/embed/lTRiuFIWV54",
         "https://www.youtube.com/embed/1ZYbU82GVz4"
-    ];
+        ];
     }
-
-    else if (type === "beta") {
-    text = "Beta waves = focus & concentration 🧠";
-    videos = [
+    
+    if (type === "beta") {
+        text = "Beta waves = focus 🧠";
+        videos = [
         "https://www.youtube.com/embed/2OEL4P1Rz04",
         "https://www.youtube.com/embed/3q0v0w8h9aQ",
         "https://www.youtube.com/embed/9Q1Xk3X"
-    ];
+        ];
     }
-
-    else if (type === "gamma") {
-    text = "Gamma waves = high cognitive activity ⚡";
-    videos = [
+    
+    if (type === "gamma") {
+        text = "Gamma waves = high cognition ⚡";
+        videos = [
         "https://www.youtube.com/embed/7p4Ff1k",
         "https://www.youtube.com/embed/8yTzQp",
         "https://www.youtube.com/embed/0XyZkL"
-    ];
+        ];
     }
-
-    // afficher texte AI
+    
     document.getElementById("ai-text").innerText = text;
-
-    // afficher vidéos
+    
     let html = "";
-
-    for (let i = 0; i < videos.length; i++) {
-    html += <iframe width="300" height="200"
-                src="${videos[i]}"
-                frameborder="0"
-                allowfullscreen>
-            </iframe>;
-    }
-
+    videos.forEach(v => {
+        html += <iframe width="300" height="200" src="${v}" frameborder="0"></iframe>;
+    });
+    
     document.getElementById("videos").innerHTML = html;
-}
-
-if (state.currentMode === "simple") {
-    // vidéos faciles
     }
-    if (state.currentMode === "moyen") {
-    // vidéos normales
-    }
-    if (state.currentMode === "complique") {
-    // vidéos avancées
-    }
-    console.log("script loaded");
-    import "./script.js";
