@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <div id="loadingScreen">
         <div class="loader"></div>
         <p>Initializing NeuroVision...</p>
@@ -14,6 +15,7 @@
     <div id="alertBox" class="alert-box hidden">
         ⚠️ Neural Spike Detected
     </div>
+
     <!-- HEADER -->
     <header class="header">
         <div class="header-left">
@@ -24,9 +26,9 @@
             <span class="live-dot"></span> LIVE NEURAL MONITORING
         </div>
         <div class="header-right">
-            <button class="mode-btn active" data-mode="simple" onclick="applyMode('simple')">simple</button>
-            <button class="mode-btn" data-mode="moyen" onclick="applyMode('moyen')">moyen</button>
-            <button class="mode-btn" data-mode="compliqué" onclick="applyMode('compliqué')">compliqué</button>
+            <button class="mode-btn active" data-mode="simple" onclick="applyMode('simple')">Simple</button>
+            <button class="mode-btn" data-mode="moyen" onclick="applyMode('moyen')">Moyen</button>
+            <button class="mode-btn" data-mode="compliqué" onclick="applyMode('compliqué')">Compliqué</button>
             <button class="upload-btn" onclick="document.getElementById('edfFile').click()">📁 Upload .edf</button>
             <input type="file" id="edfFile" accept=".edf" style="display:none" onchange="handleUpload(event)">
         </div>
@@ -80,7 +82,7 @@
             </div>
 
             <h3 class="panel-title cyan" style="margin-top:20px">CANAUX EEG</h3>
-            <div id="channelList" class="channel-list">
+<div id="channelList" class="channel-list">
                 <div class="channel"><span class="ch-dot green"></span> Fp1 <span class="ch-val">Active</span></div>
                 <div class="channel"><span class="ch-dot green"></span> Fp2 <span class="ch-val">Active</span></div>
                 <div class="channel"><span class="ch-dot green"></span> F3 <span class="ch-val">Active</span></div>
@@ -102,23 +104,22 @@
             </div>
             <div class="chart-container">
                 <canvas id="eegChart"></canvas>
-                <div class="ai-section">
+            </div>
 
-                    <h2>AI EEG Assistant</h2>
-                    
-                    <button onclick="askAI('alpha')">Alpha</button>
-                    <button onclick="askAI('beta')">Beta</button>
-                    <button onclick="askAI('gamma')">Gamma</button>
-                    
-                    <div id="ai-text"></div>
-                    
-                    <div id="videos"></div>
-                    
-                    </div>
-                    <div id="aiHelpList"></div>
-                </div>
-            <div id="eegExplanation" style="margin-top:10px; font-size:0.8rem; color:#aaa;">
+            <div id="eegExplanation" class="eeg-explanation">
                 Waiting for brain activity...
+            </div>
+
+            <!-- AI EEG ASSISTANT -->
+            <div class="ai-section">
+                <h3 class="panel-title cyan">🤖 AI EEG ASSISTANT</h3>
+                <div class="ai-buttons">
+                    <button class="ai-btn alpha-btn" onclick="askAI('alpha')">🧘 Alpha</button>
+                    <button class="ai-btn beta-btn" onclick="askAI('beta')">🧠 Beta</button>
+                    <button class="ai-btn gamma-btn" onclick="askAI('gamma')">⚡ Gamma</button>
+                </div>
+                <div id="ai-text" class="ai-text"></div>
+                <div id="videos" class="ai-videos"></div>
             </div>
 
             <div class="events-panel">
@@ -153,14 +154,8 @@
                 <div class="band-row"><span>Beta (13-30Hz)</span><span id="bpBeta">30%</span></div>
                 <div class="band-row"><span>Gamma (30+Hz)</span><span id="bpGamma">25%</span></div>
             </div>
-            <div class="metric-card">
-                <h4>EEG EXPLANATION</h4>
-                <div class="band-row"><span>Alpha</span><span>Relaxation</span></div>
-                <div class="band-row"><span>Beta</span><span>Concentration</span></div>
-                <div class="band-row"><span>Gamma</span><span>High thinking</span></div>
-            </div>
         </aside>
     </main>
-    <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
