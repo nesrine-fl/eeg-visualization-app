@@ -364,7 +364,7 @@ function detectSpike(value, type) {
 }
 function getAIResponse(question) {
     question = question.toLowerCase();
-
+// test
     if (question.includes("stress")) {
         return "Try to relax and focus on one task at a time.";
     }
